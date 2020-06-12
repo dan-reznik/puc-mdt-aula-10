@@ -22,7 +22,7 @@ library(purrr)
 
 list_complete_dfs <- c(`2017`="2017",`2018`="2018") %>% map(~{
   
-  list_bi <- read_html(str_glue("data/power_bi_{.x}.html"), encoding="ISO-8859-1")
+  list_bi <- read_html(str_glue("data_bi/power_bi_{.x}.html"), encoding="ISO-8859-1")
   
   only_table_elements <- list_bi %>% html_nodes(".pivotTable")
   
@@ -93,7 +93,7 @@ list_complete_dfs <- c(`2017`="2017",`2018`="2018") %>% map(~{
 
 # write each df into a separate .csv
 names(list_complete_dfs) %>% 
-  walk(~write_csv(list_complete_dfs[[.x]], str_glue("data/balanca_interestadual_{.x}.csv")))
+  walk(~write_csv(list_complete_dfs[[.x]], str_glue("data_bi/balanca_interestadual_{.x}.csv")))
 
 
 
