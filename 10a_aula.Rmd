@@ -22,6 +22,7 @@ A social network with 10 vertices and 18 edges. Krackhardt, D. Assessing the Pol
 
 ```{r}
 g_krack <- make_graph('Krackhardt kite')
+
 ggraph(g_krack, layout = 'graphopt') + 
     geom_edge_link(arrow = arrow(length = unit(4, 'mm')), 
                    end_cap = circle(3, 'mm')) + 
@@ -84,6 +85,11 @@ ggraph(g_bull, layout = 'graphopt') +
 # tidygraph
 
 ```{r}
+highschool
+```
+
+
+```{r}
 graph <- as_tbl_graph(highschool) %>%
     mutate(Popularity = centrality_degree(mode = 'in'))
 ```
@@ -100,10 +106,15 @@ ggraph(graph, layout = 'kk') +
 
 ```{r}
 tutte_grouped <- create_notable('tutte') %>%
-  activate(nodes) %>%
+  # activate(nodes) %>%
   mutate(group = group_edge_betweenness() %>% as.factor,
          centrality = centrality_betweenness())
 ```
+
+```{r}
+V(tutte_grouped)$centrality
+```
+
 
 
 ```{r}
