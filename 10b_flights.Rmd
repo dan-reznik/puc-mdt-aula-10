@@ -1,0 +1,98 @@
+---
+title: "Flights"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Flights / map geosphere
+
+```{r message = F}
+df_airports <- read_csv("data_sb/Dataset3-Airlines-NODES.csv")
+df_flights <- read_csv("data_sb/Dataset3-Airlines-EDGES.csv")
+df_flights %>% glimpse
+df_airports %>% glimpse()
+```
+
+```{r}
+# Selecionar apenas os aeroportos que possuem mais de 10 conexões no mapa.
+big_id <- df_flights %>%
+  count(Source, sort = T) %>%
+  filter(n > 10) %>%
+  pull(Source)
+
+df_airports <- df_airports %>%
+  filter(df_airports$ID %in% big_id)
+
+df_flights  <- df_flights %>%
+  filter(df_flights$Source %in% big_id & 
+                    df_flights$Target %in% big_id)
+```
+
+```{r}
+#Paleta de cores utilizada
+col_1 <- adjustcolor("orange red", alpha=0.4)
+col_2 <- adjustcolor("orange", alpha=0.4)
+edge_pal <- colorRampPalette(c(col_1, col_2), alpha = TRUE)
+edge_col <- edge_pal(100)
+
+#pop up
+pop <- str_glue("<b>Lat:</b> {df_airports$latitude} <br/>
+                <b>Lon:</b> {df_airports$longitude} <br/>
+                <b>Airport:</b> {df_airports$Label} <br/>")
+```
+
+
+```{r}
+map_flights <-
+  leaflet( options = leafletOptions( minZoom = 1) ) %>%
+  setMaxBounds( lng1 = -180
+                , lat1 = -89.98155760646617
+                , lng2 = 180
+                , lat2 = 89.99346179538875 ) %>%
+    addProviderTiles(providers$CartoDB.DarkMatter) %>%
+    addPolygons(data = maps::map("usa", plot = F), fillColor = "blue",
+  opacity = .1)
+
+for(i in 1:nrow(df_flights))  {
+    #Origem
+    node1 <- df_airports %>% 
+      filter(df_airports$ID == df_flights[i,]$Source)
+    #destino
+    node2 <- df_airports %>%
+      filter(df_airports$ID == df_flights[i,]$Target)
+    #numero da cor na paleta
+    edge_ind = round(100*df_flights[i,]$Freq / max(df_flights$Freq))
+    
+    # Cria linhas curvas
+    curved_line <-
+      gcIntermediate(
+        p1 = c(node1$longitude, node1$latitude)
+        , p2 = c(node2$longitude, node2$latitude)
+        , breakAtDateLine = TRUE
+        , n = 1000
+        , addStartEnd = TRUE
+        , sp = TRUE
+  )
+    #adiciona cada linha curva
+    map_flights <- addPolylines(map_flights, data = curved_line
+                , color = edge_col[edge_ind], weight = edge_ind/30, opacity = 1)
+}
+# adiciona os pontos por ultimo para sobrepor as linhas
+map_flights <- addCircles(map_flights, data = df_airports
+                    , lng = ~longitude
+                    , lat = ~latitude
+                    , color = "red"
+                    , popup = pop
+                    , weight = 12
+                    , opacity = .8
+                    ,highlightOptions = highlightOptions(color = "yellow", weight = 24, bringToFront = TRUE))
+#mostra o mapa
+map_flights
+```
+
+
+
+
