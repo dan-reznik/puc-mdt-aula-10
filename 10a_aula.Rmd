@@ -8,29 +8,97 @@ library(tidyverse)
 library(igraph)
 library(tidygraph)
 library(ggraph)
-library(networkD3)
-library(maps)
-library(geosphere)
-library(leaflet)
+#library(networkD3)
+#library(maps)
+#library(geosphere)
+#library(leaflet)
 ```
 
-# Grafos Simples. Ver help de "make_graph" para achar as outras possibilidades:
+# Tidygraph
 
-## Krackhardt kite
-
-A social network with 10 vertices and 18 edges. Krackhardt, D. Assessing the Political Landscape: Structure, Cognition, and Power in Organizations. Admin. Sci. Quart. 35, 342-369, 1990. 
+Lê conectividade (arestas)
 
 ```{r}
-g_krack <- make_graph('Krackhardt kite')
+df_emails <- read_csv("data/email_edges.csv")
+```
 
-ggraph(g_krack, layout = 'graphopt') + 
-    geom_edge_link(arrow = arrow(length = unit(4, 'mm')), 
-                   end_cap = circle(3, 'mm')) + 
-    geom_node_point(size = 5)
+Converte para objeto "tidgraph"
+
+```{r}
+gr_emails <- df_emails %>%
+  as_tbl_graph()
+```
+
+Quais nós? (V=vertices)
+
+```{r}
+V(gr_emails)
+```
+
+Quais arestas? (E=edges)
+
+```{r}
+E(gr_emails)
+```
+
+Atribui peso a cada aresta pelo numero de emails
+
+```{r}
+E(gr_emails)$weight <- df_emails$emails
+```
+
+Desenha
+
+```{r}
+gr_emails %>% 
+  ggraph(layout = 'graphopt') + 
+  geom_edge_fan2(aes(edge_width=weight)) +
+  scale_edge_width_discrete(range(1,100)) +
+  geom_node_point(size = 5)
 ```
 
 ```{r}
-g_krack %>% igraph::as_data_frame()
+gr_emails %>% 
+  ggraph(layout = 'graphopt') + 
+  geom_edge_link(aes(edge_width=weight/25),
+                arrow = arrow(length = unit(3, 'mm')), 
+                 end_cap = circle(3, 'mm')) + 
+  geom_node_point(size = 5)
+```
+
+Lê info sobre usuários
+
+```{r}
+df_emails_users <- read_csv("data/email_nodes.csv",
+                            col_types="ccc")
+df_emails_users
+```
+
+Vamos atribuir os nomes dos usuarios ao grafo
+
+```{r}
+V(gr_emails)$name <- df_emails_users$name
+V(gr_emails)$sex <- df_emails_users$sex
+```
+
+
+```{r}
+gr_emails_attr <- gr_emails %>%
+  mutate(name=df_emails_node_names$name,
+         color=if_else(df_emails_node_names$sex=="M",'blue','pink'))
+```
+
+Desenha o grafo:
+
+```{r}
+gr_emails_attr %>%
+ggraph(layout = 'graphopt') + 
+    geom_edge_link(aes(start_cap = label_rect(node1.name),
+                       end_cap = label_rect(node2.name)), 
+                   arrow = arrow(length = unit(4, 'mm'))) +
+  geom_node_point(aes(color=color),size=10) +
+    geom_node_text(aes(label = name)) +
+  theme(legend.position = "none")
 ```
 
 
@@ -138,7 +206,7 @@ links <- read_csv("data_sb/Dataset1-Media-Example-EDGES.csv")
 ```
 
 ```{r}
-links.d3 <- data_frame(from=as.numeric(factor(links$from))-1,
+links.d3 <- tibble(from=as.numeric(factor(links$from))-1,
                        to=as.numeric(factor(links$to))-1 )
 nodes_d3 <- nodes %>%
   mutate(idn=factor(nodes$media, levels=nodes$media)) %>%

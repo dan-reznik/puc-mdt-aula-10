@@ -1,0 +1,29 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(igraph)
+```
+
+```{r}
+df_krack <- igraph::make_graph('Krackhardt kite') %>%
+  as_data_frame()
+df_krack
+```
+
+
+
+```{r}
+df_krack_prep <- df_krack %>%
+  bind_rows(df_krack%>%mutate(tmp=to,to=from,from=tmp)%>%select(from,to)) %>%
+  mutate(emails=sample.int(100,nrow(.),replace=T))
+df_krack_prep
+```
+
+```{r}
+df_krack_prep %>% write_csv("../data/email_edges.csv")
+```
+
