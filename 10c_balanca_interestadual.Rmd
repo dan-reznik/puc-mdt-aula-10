@@ -11,8 +11,15 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(networkD3)
 library(rvest)
 library(purrr)
+library(igraph)
+library(tidygraph)
+library(geosphere)
+library(ggraph)
+library(geobr)
+library(sf)
 ```
 
 
@@ -20,8 +27,8 @@ library(purrr)
 
 # Do the same for 2017 and 2018 and return tables in a list
 
-list_complete_dfs <- c(`2017`="2017",`2018`="2018") %>% map(~{
-  
+list_complete_dfs <- c(`2017`="2017",`2018`="2018") %>% purrr::map(~{
+
   list_bi <- read_html(str_glue("data_bi/power_bi_{.x}.html"), encoding="ISO-8859-1")
   
   only_table_elements <- list_bi %>% html_nodes(".pivotTable")
@@ -42,7 +49,7 @@ list_complete_dfs <- c(`2017`="2017",`2018`="2018") %>% map(~{
   
   # Table is separated into quadrants:
   # Get each quadrant's html structure
-  list_quadrants <- 1:6 %>% map(~xml_child(cells_content[[1]], .x))
+  list_quadrants <- 1:6 %>% purrr::map(~xml_child(cells_content[[1]], .x))
   
   # Quandrant scheme: (order in list: Q11, Q21, Q12, Q22, Q13, Q23)
   #   Q11     Q12    Q13
@@ -50,7 +57,7 @@ list_complete_dfs <- c(`2017`="2017",`2018`="2018") %>% map(~{
   #   Q21     Q22    Q23
   
   # get the df corrresponding to each quadrant
-  list_quadrants_df <- 1:length(list_quadrants) %>% map(~{
+  list_quadrants_df <- 1:length(list_quadrants) %>% purrr::map(~{
     nth_col_index <- 1
     
     
@@ -86,15 +93,161 @@ list_complete_dfs <- c(`2017`="2017",`2018`="2018") %>% map(~{
   
   # Set column real names
   colnames(df_complete) <- column_names
-  rownames(df_complete) <- row_names
-  df_complete
+  df_complete %>%
+    mutate(from=row_names) %>%
+    select(from, everything())
   
 })
 
 # write each df into a separate .csv
-names(list_complete_dfs) %>% 
-  walk(~write_csv(list_complete_dfs[[.x]], str_glue("data_bi/balanca_interestadual_{.x}.csv")))
+ names(list_complete_dfs) %>% 
+   walk(~write_csv(list_complete_dfs[[.x]], str_glue("data_bi/balanca_interestadual_{.x}.csv")))
 
 
 
 ```
+
+
+
+```{r}
+
+
+
+df_from_to <- names(list_complete_dfs) %>% map_dfr(~{
+  
+  list_complete_dfs[[.x]] %>%
+    select(-Total) %>%
+    pivot_longer(AC:TO, names_to="to", values_to="weight") %>%
+    filter(weight>0) %>%
+    mutate(ano=.x) 
+  
+}) %>% mutate(id=row_number())
+
+
+df_from_to_2017 <-   list_complete_dfs$`2017` %>%
+    select(-Total) %>%
+    pivot_longer(AC:TO, names_to="to", values_to="weight") %>%
+    filter(weight>0) %>%
+    mutate(ano=2017,
+           weight=weight %>% str_remove_all(fixed(".")) %>%
+             str_replace(fixed(","), ".")) 
+
+net <- as_tbl_graph(df_from_to_2017, directed=T) %>%
+    mutate(centrality = centrality_betweenness())
+
+E(net)$weight
+
+
+# graph <- as_tbl_graph(df_from_to, directed = T) %>%
+#     mutate(group = group_edge_betweenness() %>% as.factor,
+#            centrality = centrality_betweenness())
+
+
+
+clp <-cluster_optimal(net, weights=E(net)$weight)
+
+
+V(net)$community <- as.integer(clp$membership)
+
+
+E(net)$weight <- as.character(as.double(E(net)$weight)/1e7)
+
+sudeste <- c("SP", "RJ", "ES", "MG")
+
+net %>%
+  filter(name %in% sudeste) %>%
+  #activate(edges) %>%
+  #filter(as.integer(weight)>=100) %>%
+ggraph(layout="circle") +
+ geom_edge_link(aes(width=(as.integer(weight))),
+                angle_calc = 'along',
+                label_dodge = unit(2.5, 'mm'),
+                arrow = arrow(length = unit(4, 'mm')), 
+                 end_cap = circle(3, 'mm')) +
+  geom_node_point(aes(size=centrality, color=factor(community))) +
+  scale_edge_colour_brewer(palette = "Set1") +
+  geom_node_label(aes(label = name), repel = TRUE)
+
+
+
+
+
+E(net)$weight %>%
+  summary()
+
+V(net)$name
+
+```
+
+
+```{r}
+
+
+
+
+#library(geobr)
+states <- read_state(year=2014)
+capitais <- read_csv("data_bi/capitais_lat_lon.csv")
+df_map <- df_from_to_2017 %>% left_join(capitais, by=c("from"="estado")) %>% mutate(weight = as.double(weight)/1e6)
+
+df_map <- df_map %>% inner_join(capitais%>%select(-regiao) %>% rename(xend=lon, yend=lat), by=c(to="estado"))
+
+edges_for_plot <- edges %>%
+  inner_join(nodes %>% select(id, lon, lat), by = c('from' = 'id')) %>%
+  rename(x = lon, y = lat) %>%
+  inner_join(nodes %>% select(id, lon, lat), by = c('to' = 'id')) %>%
+  rename(xend = lon, yend = lat)
+
+states %>%
+  ggplot() +
+    geom_sf( fill="#2D3E50", color="#FEBF57", size=.15, show.legend = FALSE) +
+    labs(subtitle="Estados", size=8) +
+  geom_point(data=df_map, aes(x=lon, y=lat, size=weight), color="orange") +
+  geom_curve(data=df_map, aes(x = lon, y = lat, xend = xend, yend = yend,     # draw edges as arcs
+                 size = weight), color="green",
+             curvature = 0.33,
+             alpha = 0.5) +
+    theme_minimal() +
+  theme(legend.position="none")
+
+states %>%
+  ggplot() +
+    geom_sf( fill="#2D3E50", color="#FEBF57", size=.15, show.legend = FALSE) +
+    labs(subtitle="Estados", size=8) +
+  geom_point(data=df_map, aes(x=lon, y=lat, size=weight), color="orange") +
+  geom_curve(data=df_map%>%filter(from=="RJ"), aes(x = lon, y = lat, xend = xend, yend = yend,     # draw edges as arcs
+                 size = weight), color="green",
+             curvature = 0.1,
+             alpha = 0.5,
+             arrow=arrow(length=unit(0.1, "inches"))) +
+    theme_minimal() +
+  theme(legend.position="none")
+
+
+```
+
+
+
+
+```{r}
+
+
+
+df_map
+links.d3 <- tibble(from=as.integer(factor(df_map$from))-1L,
+                       to=as.integer(factor(df_map$to))-1L )
+nodes_d3 <- capitais %>%
+  mutate(idn=factor(capitais$regiao, levels=capitais$regiao%>%unique())) %>%
+  select(idn,everything()) 
+
+forceNetwork(Links = links.d3, Nodes = nodes_d3, Source="from", Target="to",
+             NodeID = "idn", # must be first column in Nodes df
+             Group = "regiao", linkWidth = 1,
+             linkColour = "#afafaf", fontSize=12, zoom=T, legend=T,
+             Nodesize=6, opacity = 1, charge=-600,
+             width = 600, height = 600)
+```
+
+
+
+
