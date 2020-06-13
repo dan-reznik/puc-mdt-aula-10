@@ -93,6 +93,7 @@ renderPlot({
 
 
 df_from_to_2017 <- df_to_from %>% filter(ano=="2017") %>%
+  filter(weight>500) %>%
   select(-ano, -lat, -lon, -regiao)
 
 
