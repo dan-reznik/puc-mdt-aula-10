@@ -30,11 +30,6 @@ group_pal <- colorFactor(
   domain = df_airports_grouped$group
 )
 
-#pop up
-pop <- str_glue("<b>Lat:</b> {df_airports_grouped$latitude} <br/>
-                <b>Lon:</b> {df_airports_grouped$longitude} <br/>
-                <b>Airport:</b> {df_airports_grouped$Label} <br/>")
-
 
 map_flights <-
   leaflet( options = leafletOptions( minZoom = 1) ) %>%
@@ -87,7 +82,9 @@ renderLeaflet({
                                , lat = ~latitude
                                , group = as.character(group_id)
                                , color = ~group_pal(group_id)
-                               , popup = pop
+                               , popup = str_glue("<b>Lat:</b> {df_airports_grouped[i,]$latitude} <br/>
+                <b>Lon:</b> {df_airports_grouped[i,]$longitude} <br/>
+                <b>Airport:</b> {df_airports_grouped[i,]$Label} <br/>")
                                , weight = ~centrality*2
                                , opacity = .8
                                ,highlightOptions = highlightOptions(color = "yellow", bringToFront = TRUE))

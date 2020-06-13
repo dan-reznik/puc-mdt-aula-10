@@ -22,7 +22,7 @@ df_flights  <- df_flights %>%
 
 #Criando variaveis group e centrality a partir do grafo do data frame
 graph_flights_grouped <- df_flights %>%
-  select(-Freq, from = Source, to = Target) %>%
+  select(from = Source, to = Target) %>%
   as_tbl_graph(directed = F) %>%
   activate(nodes) %>%
   mutate(group = group_fast_greedy() %>% as_factor,

@@ -71,7 +71,7 @@ for(i in 1:nrow(df_airports_grouped)) {
                              , popup = str_glue("<b>Lat:</b> {df_airports_grouped[i,]$latitude} <br/>
                 <b>Lon:</b> {df_airports_grouped[i,]$longitude} <br/>
                 <b>Airport:</b> {df_airports_grouped[i,]$Label} <br/>")
-                             , weight = ~sqrt(centrality)*7
+                             , weight = ~sqrt(sqrt(centrality))*10
                              , opacity = .8
                              ,highlightOptions = highlightOptions(color = "yellow", bringToFront = TRUE))
 }
