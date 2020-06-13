@@ -119,9 +119,12 @@ df_from_to <- names(list_complete_dfs) %>% map_dfr(~{
     select(-Total) %>%
     pivot_longer(AC:TO, names_to="to", values_to="weight") %>%
     filter(weight>0) %>%
-    mutate(ano=.x) 
+    mutate(ano=.x,
+           weight=weight %>% str_remove_all(fixed(".")) %>%
+             str_replace(fixed(","), ".") %>% as.double()/1e6 )
   
-}) %>% mutate(id=row_number())
+}) %>% mutate(id=row_number(),
+              weight=as.double(weight))
 
 
 df_from_to_2017 <-   list_complete_dfs$`2017` %>%
@@ -130,12 +133,15 @@ df_from_to_2017 <-   list_complete_dfs$`2017` %>%
     filter(weight>0) %>%
     mutate(ano=2017,
            weight=weight %>% str_remove_all(fixed(".")) %>%
-             str_replace(fixed(","), ".")) 
+             str_replace(fixed(","), ".") %>% as.double()/1e6 )
+
+
+df_from_to  %>% write_rds("data_bi/df_to_from.rds")
 
 net <- as_tbl_graph(df_from_to_2017, directed=T) %>%
     mutate(centrality = centrality_betweenness())
 
-E(net)$weight
+
 
 
 # graph <- as_tbl_graph(df_from_to, directed = T) %>%
@@ -183,6 +189,9 @@ V(net)$name
 ```{r}
 #library(geobr)
 states <- read_state(year=2014)
+
+states %>% write_rds("data_bi/poligonos_estados.rds")
+
 capitais <- read_csv("data_bi/capitais_lat_lon.csv")
 df_map <- df_from_to_2017 %>% left_join(capitais, by=c("from"="estado")) %>% mutate(weight = as.double(weight)/1e6)
 
