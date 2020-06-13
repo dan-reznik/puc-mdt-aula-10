@@ -18,59 +18,18 @@ library(igraph)
 # Flights / map geosphere
 
 ```{r message = F}
-df_airports <- read_csv("data_sb/Dataset3-Airlines-NODES.csv")
-df_flights <- read_csv("data_sb/Dataset3-Airlines-EDGES.csv")
-df_flights %>% glimpse
-df_airports %>% glimpse()
+df_airports_grouped <- read_rds("data_sb/df_airports_grouped.rds")
+df_flights_grouped <- read_rds("data_sb/df_flights_grouped.rds")
 ```
 
-```{r}
-# Selecionar apenas os aeroportos que possuem mais de 10 conexões no mapa.
-big_id <- df_flights %>%
-  count(Source, sort = T) %>%
-  filter(n > 10) %>%
-  pull(Source)
-
-df_airports <- df_airports %>%
-  filter(df_airports$ID %in% big_id)
-
-df_flights  <- df_flights %>%
-  filter(df_flights$Source %in% big_id & 
-                    df_flights$Target %in% big_id)
-```
 
 ```{r}
-#Criando variaveis group e centrality a partir do grafo do data frame
-graph_flights_grouped <- df_flights %>%
-  select(-Freq, from = Source, to = Target) %>%
-  as_tbl_graph(directed = F) %>%
-  activate(nodes) %>%
-  mutate(group = tidygraph::group_fast_greedy() %>% as.factor,
-         centrality = centrality_betweenness())
-
-df_airports_grouped <- df_airports %>%
-  mutate(group = V(graph_flights_grouped)$group, centrality = V(graph_flights_grouped)$centrality %>% unname())
-
-df_airports_grouped$centrality
-```
-
-```{r}
-#Paleta de cores utilizada para edge 
-col_1 <- adjustcolor("orange red", alpha=0.4)
-col_2 <- adjustcolor("orange", alpha=0.4)
-edge_pal <- colorRampPalette(c(col_1, col_2), alpha = TRUE)
-edge_col <- edge_pal(100)
-
 #Paleta de cores utilizada para parametro group
 group_pal <- colorFactor(
   palette = "Set1",
   domain = df_airports_grouped$group
 )
 
-#pop up
-pop <- str_glue("<b>Lat:</b> {df_airports$latitude} <br/>
-                <b>Lon:</b> {df_airports$longitude} <br/>
-                <b>Airport:</b> {df_airports$Label} <br/>")
 ```
 
 ```{r}
@@ -84,30 +43,15 @@ map_flights <-
     addPolygons(data = maps::map("usa", plot = F), fillColor = "blue",
   opacity = .1)
 
-for(i in 1:nrow(df_flights))  {
-  #Origem
-  node1 <- df_airports_grouped %>% 
-    filter(df_airports_grouped$ID == df_flights[i,]$Source)
+#Paleta de cores utilizada para edge 
+col_1 <- adjustcolor("orange red", alpha=0.4)
+col_2 <- adjustcolor("orange", alpha=0.4)
+edge_pal <- colorRampPalette(c(col_1, col_2), alpha = TRUE)
+edge_col <- edge_pal(100)
 
-  #destino
-  node2 <- df_airports_grouped %>%
-    filter(df_airports_grouped$ID == df_flights[i,]$Target)
-
-    #numero da cor na paleta
-  edge_ind = round(100*df_flights[i,]$Freq / max(df_flights$Freq))
-  
-  # Cria linhas curvas
-  curved_line <-
-    gcIntermediate(
-      p1 = c(node1$longitude, node1$latitude)
-      , p2 = c(node2$longitude, node2$latitude)
-      , breakAtDateLine = TRUE
-      , n = 12
-      , addStartEnd = TRUE
-      , sp = TRUE
-    )
-  
-  
+for(i in 1:nrow(df_flights_grouped))  {
+  edge_ind <- df_flights_grouped %>% pull(curved_line_color_ind) %>% `[[`(i)
+  curved_line <- df_flights_grouped %>% pull(curved_line) %>% `[[`(i)
   
   #adiciona cada linha curva
   map_flights <- addPolylines(map_flights, data = curved_line
@@ -117,15 +61,17 @@ for(i in 1:nrow(df_flights))  {
 }
 
 for(i in 1:nrow(df_airports_grouped)) {
-  group_id <- df_airports_grouped[i,] %>% pull(group)
+  group_id <- df_airports_grouped %>% pull(group) %>% `[[`(i)
   
   map_flights <-  addCircles(map_flights, data = df_airports_grouped[i,]
                              , lng = ~longitude
                              , lat = ~latitude
                              , group = as.character(group_id)
                              , color = ~group_pal(group_id)
-                             , popup = pop
-                             , weight = ~centrality*2
+                             , popup = str_glue("<b>Lat:</b> {df_airports_grouped[i,]$latitude} <br/>
+                <b>Lon:</b> {df_airports_grouped[i,]$longitude} <br/>
+                <b>Airport:</b> {df_airports_grouped[i,]$Label} <br/>")
+                             , weight = ~sqrt(centrality)*7
                              , opacity = .8
                              ,highlightOptions = highlightOptions(color = "yellow", bringToFront = TRUE))
 }

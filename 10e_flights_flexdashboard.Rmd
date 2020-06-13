@@ -69,29 +69,8 @@ renderLeaflet({
     filter(group_id_2 %in% input$grupo)
   
   for(i in 1:nrow(df_flights_grouped))  {
-    #Origem
-    node1 <- df_airports_grouped %>% 
-      filter(df_airports_grouped$ID == df_flights_grouped[i,]$Source)
-    
-    #destino
-    node2 <- df_airports_grouped %>%
-      filter(df_airports_grouped$ID == df_flights_grouped[i,]$Target)
-    
-    #numero da cor na paleta
-    edge_ind = round(100*df_flights_grouped[i,]$Freq / max(df_flights_grouped$Freq))
-    
-    # Cria linhas curvas
-    curved_line <-
-      gcIntermediate(
-        p1 = c(node1$longitude, node1$latitude)
-        , p2 = c(node2$longitude, node2$latitude)
-        , breakAtDateLine = TRUE
-        , n = 12
-        , addStartEnd = TRUE
-        , sp = TRUE
-      )
-    
-    
+    edge_ind <- df_flights_grouped %>% pull(curved_line_color_ind) %>% `[[`(i)
+    curved_line <- df_flights_grouped %>% pull(curved_line) %>% `[[`(i)
     
     #adiciona cada linha curva
     map_flights <- addPolylines(map_flights, data = curved_line
@@ -101,7 +80,7 @@ renderLeaflet({
   }
   
   for(i in 1:nrow(df_airports_grouped)) {
-    group_id <- df_airports_grouped[i,] %>% pull(group)
+    group_id <- df_airports_grouped %>% pull(group) %>% `[[`(i)
     
     map_flights <-  addCircles(map_flights, data = df_airports_grouped[i,]
                                , lng = ~longitude
