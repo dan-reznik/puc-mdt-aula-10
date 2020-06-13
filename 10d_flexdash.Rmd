@@ -123,8 +123,8 @@ nodes_d3 <- nodes_capitais %>%
 
 forceNetwork(Links = links_d3, Nodes = nodes_d3, Source="from", Target="to",
              NodeID = "idn", # must be first column in Nodes df
-             Group = "regiao", opacity=1, zoom=T, legend=T, charge=-600,
-             Nodesize="centrality", Value="weight", fontsize=14)
+             Group = "regiao", opacity=1, zoom=T, legend=T, charge=-1500,
+             Nodesize="centrality", Value="weight", fontSize=20)
 
 
 ```
