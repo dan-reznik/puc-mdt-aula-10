@@ -1,7 +1,9 @@
 ---
 title: "Saldo de Exportações por Estado"
+resource_files:
+- data_bi/capitais_lat_lon.csv
 runtime: shiny
-output: 
+output:
   flexdashboard::flex_dashboard:
     orientation: rows
     vertical_layout: fill
@@ -10,10 +12,17 @@ output:
 ```{r setup, include=FALSE}
 library(flexdashboard)
 library(tidyverse)
+library(sf)
+library(networkD3)
+library(igraph)
+library(tidygraph)
+
+
+
 
 capitais <- read_csv("data_bi/capitais_lat_lon.csv")
 df_to_from <- read_rds("data_bi/df_to_from.rds") %>%
-  left_join(capitais, by=c("from"="estado"))
+  left_join(capitais, by=c("from"="estado")) 
 
 states <- read_rds("data_bi/poligonos_estados.rds")
 
@@ -29,6 +38,10 @@ estados <- c(capitais$estado)
 ```
 
 
+
+
+# Mapa
+
 ## Column {.sidebar column-width=100}
 
 ```{r}
@@ -36,6 +49,8 @@ radioButtons("ano", "Ano", c("2017","2018"), selected="2017")
 #selectInput("regiao", "Região", choices=regioes, selected = "SE")
 selectInput("estados", "Estados", choices=estados, selected = c("SP"))
 ```
+
+
 
 ## Row {row-height = 400}
 
@@ -70,4 +85,46 @@ renderPlot({
 ```
 
 
+# D3 Network
 
+```{r}
+
+
+
+
+df_from_to_2017 <- df_to_from %>% filter(ano=="2017") %>%
+  select(-ano, -lat, -lon, -regiao)
+
+
+net_centrality <- as_tbl_graph(df_from_to_2017, directed=T) %>%
+    mutate(centrality = centrality_betweenness()) %>% 
+  as_tibble()
+
+
+nodes_capitais <- capitais  %>%
+  mutate(id=sprintf("s%.2d",(1:(nrow(.))))) %>% 
+  select(id, estado, regiao)
+
+df_d3 <- df_from_to_2017  %>%
+  #filter(weight>500) %>%
+  left_join(nodes_capitais%>%rename(id_from=id),by=c(from = "estado")) %>%
+  left_join(nodes_capitais %>% rename(id_to=id), by=c(to = "estado"))  %>%
+  select(id_from, id_to, everything())
+
+
+links_d3 <- tibble(from=as.integer(factor(df_d3$id_from))-1L,
+                       to=as.integer(factor(df_d3$id_to))-1L,
+                   weight=df_d3$weight/1000) 
+nodes_d3 <- nodes_capitais %>%
+  left_join(net_centrality, by=c(estado="name")) %>%
+  mutate(idn=factor(nodes_capitais$estado, levels=nodes_capitais$estado)) %>%
+  select(idn, id, everything()) 
+
+
+forceNetwork(Links = links_d3, Nodes = nodes_d3, Source="from", Target="to",
+             NodeID = "idn", # must be first column in Nodes df
+             Group = "regiao", opacity=1, zoom=T, legend=T, charge=-600,
+             Nodesize="centrality", Value="weight", fontsize=14)
+
+
+```

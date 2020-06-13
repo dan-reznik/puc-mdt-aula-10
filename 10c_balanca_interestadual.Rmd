@@ -123,8 +123,7 @@ df_from_to <- names(list_complete_dfs) %>% map_dfr(~{
            weight=weight %>% str_remove_all(fixed(".")) %>%
              str_replace(fixed(","), ".") %>% as.double()/1e6 )
   
-}) %>% mutate(id=row_number(),
-              weight=as.double(weight))
+}) %>% mutate(weight=as.double(weight))
 
 
 df_from_to_2017 <-   list_complete_dfs$`2017` %>%
@@ -138,118 +137,49 @@ df_from_to_2017 <-   list_complete_dfs$`2017` %>%
 
 df_from_to  %>% write_rds("data_bi/df_to_from.rds")
 
-net <- as_tbl_graph(df_from_to_2017, directed=T) %>%
-    mutate(centrality = centrality_betweenness())
+net_centrality <- as_tbl_graph(df_from_to_2017, directed=T) %>%
+    mutate(centrality = centrality_betweenness()) %>% 
+  as_tibble()
 
-
-
-
-# graph <- as_tbl_graph(df_from_to, directed = T) %>%
-#     mutate(group = group_edge_betweenness() %>% as.factor,
-#            centrality = centrality_betweenness())
-
-
-
-clp <-cluster_optimal(net, weights=E(net)$weight)
-
-
-V(net)$community <- as.integer(clp$membership)
-
-
-E(net)$weight <- as.character(as.double(E(net)$weight)/1e7)
-
-sudeste <- c("SP", "RJ", "ES", "MG")
-
-net %>%
-  filter(name %in% sudeste) %>%
-  #activate(edges) %>%
-  #filter(as.integer(weight)>=100) %>%
-ggraph(layout="circle") +
- geom_edge_link(aes(width=(as.integer(weight))),
-                angle_calc = 'along',
-                label_dodge = unit(2.5, 'mm'),
-                arrow = arrow(length = unit(4, 'mm')), 
-                 end_cap = circle(3, 'mm')) +
-  geom_node_point(aes(size=centrality, color=factor(community))) +
-  scale_edge_colour_brewer(palette = "Set1") +
-  geom_node_label(aes(label = name), repel = TRUE)
-
-
-
-
-
-E(net)$weight %>%
-  summary()
-
-V(net)$name
 
 ```
 
 
-```{r}
-#library(geobr)
-states <- read_state(year=2014)
 
-states %>% write_rds("data_bi/poligonos_estados.rds")
+
+```{r}
+
+nodes <- read_csv("data_sb/Dataset1-Media-Example-NODES.csv")
+links <- read_csv("data_sb/Dataset1-Media-Example-EDGES.csv")
 
 capitais <- read_csv("data_bi/capitais_lat_lon.csv")
-df_map <- df_from_to_2017 %>% left_join(capitais, by=c("from"="estado")) %>% mutate(weight = as.double(weight)/1e6)
 
-df_map <- df_map %>% inner_join(capitais%>%select(-regiao) %>% rename(xend=lon, yend=lat), by=c(to="estado"))
+nodes_capitais <- capitais  %>%
+  mutate(id=sprintf("s%.2d",(1:(nrow(.))))) %>% 
+  select(id, estado, regiao)
 
-#edges_for_plot <- edges %>%
-#  inner_join(nodes %>% select(id, lon, lat), by = c('from' = 'id')) %>%
-#  rename(x = lon, y = lat) %>%
-#  inner_join(nodes %>% select(id, lon, lat), by = c('to' = 'id')) %>%
-#  rename(xend = lon, yend = lat)
-
-states %>%
-  ggplot() +
-    geom_sf( fill="#2D3E50", color="#FEBF57", size=.15, show.legend = FALSE) +
-    labs(subtitle="Estados", size=8) +
-  geom_point(data=df_map, aes(x=lon, y=lat, size=weight), color="orange") +
-  geom_curve(data=df_map, aes(x = lon, y = lat, xend = xend, yend = yend,     # draw edges as arcs
-                 size = weight), color="green",
-             curvature = 0.33,
-             alpha = 0.5) +
-    theme_minimal() +
-  theme(legend.position="none")
-
-states %>%
-  ggplot() +
-    geom_sf( fill="#2D3E50", color="#FEBF57", size=.15, show.legend = FALSE) +
-    labs(subtitle="Estados", size=8) +
-  geom_point(data=df_map, aes(x=lon, y=lat, size=weight), color="orange") +
-  geom_curve(data=df_map%>%filter(from=="RJ"), aes(x = lon, y = lat, xend = xend, yend = yend,     # draw edges as arcs
-                 size = weight), color="green",
-             curvature = 0.1,
-             alpha = 0.5,
-             arrow=arrow(length=unit(0.1, "inches"))) +
-    theme_minimal() +
-  theme(legend.position="none")
+df_d3 <- df_from_to_2017  %>%
+  #filter(weight>500) %>%
+  left_join(nodes_capitais%>%rename(id_from=id),by=c(from = "estado")) %>%
+  left_join(nodes_capitais %>% rename(id_to=id), by=c(to = "estado"))  %>%
+  select(id_from, id_to, everything())
 
 
-```
+links_d3 <- tibble(from=as.integer(factor(df_d3$id_from))-1L,
+                       to=as.integer(factor(df_d3$id_to))-1L,
+                   weight=df_d3$weight/1000) 
+nodes_d3 <- nodes_capitais %>%
+  left_join(net_centrality, by=c(estado="name")) %>%
+  mutate(idn=factor(nodes_capitais$estado, levels=nodes_capitais$estado)) %>%
+  select(idn, id, everything()) 
 
 
-
-
-```{r}
-
-nodes.d3 <- capitais %>%
-  mutate(idn=factor(capitais$estado, levels=capitais$estado)) %>%
-  select(idn,everything()) 
-
-links.d3 <- tibble(from=as.integer(factor(df_map$from))-1L,
-                   to=as.integer(factor(df_map$to))-1L )
-
-forceNetwork(Links = links.d3, Source="from", Target="to",
-             Nodes = nodes.d3, 
+forceNetwork(Links = links_d3, Nodes = nodes_d3, Source="from", Target="to",
              NodeID = "idn", # must be first column in Nodes df
-             Group = "regiao", linkWidth = 1,
-             linkColour = "#afafaf", fontSize=12, zoom=T, legend=T,
-             Nodesize=6, opacity = 1, charge=-600,
-             width = 600, height = 600)
+             Group = "regiao", opacity=1, zoom=T, legend=T, charge=-600,
+             Nodesize="centrality", Value="weight")
+
+
 ```
 
 
