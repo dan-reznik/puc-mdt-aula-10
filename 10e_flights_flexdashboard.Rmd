@@ -1,0 +1,120 @@
+---
+title: "Voos USA"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    runtime: shiny
+---
+
+
+```{r global, include=FALSE}
+library(tidyverse)
+library(geosphere)
+library(leaflet)
+
+# Flights / map geosphere
+df_airports_grouped <- read_rds("data_sb/df_airports_grouped.rds")
+
+df_flights_grouped <- read_rds("data_sb/df_flights_grouped.rds")
+
+#Paleta de cores utilizada para edge 
+col_1 <- adjustcolor("orange red", alpha=0.4)
+col_2 <- adjustcolor("orange", alpha=0.4)
+edge_pal <- colorRampPalette(c(col_1, col_2), alpha = TRUE)
+edge_col <- edge_pal(100)
+
+#Paleta de cores utilizada para parametro group
+group_pal <- colorFactor(
+  palette = "Set1",
+  domain = df_airports_grouped$group
+)
+
+#pop up
+pop <- str_glue("<b>Lat:</b> {df_airports_grouped$latitude} <br/>
+                <b>Lon:</b> {df_airports_grouped$longitude} <br/>
+                <b>Airport:</b> {df_airports_grouped$Label} <br/>")
+
+
+map_flights <-
+  leaflet( options = leafletOptions( minZoom = 1) ) %>%
+  setMaxBounds( lng1 = -180
+                , lat1 = -89.98155760646617
+                , lng2 = 180
+                , lat2 = 89.99346179538875 ) %>%
+    addProviderTiles(providers$CartoDB.DarkMatter) %>%
+    addPolygons(data = maps::map("usa", plot = F), fillColor = "blue",
+  opacity = .1)
+
+group_uniques = df_airports_grouped %>% pull(group) %>% levels()
+```
+
+## Column {.sidebar}
+
+```{r}
+checkboxGroupInput("grupo", "Grupo", choices=group_uniques, selected = group_uniques)
+```
+
+## Column {data-width=650}
+
+### 
+
+```{r}
+renderLeaflet({
+  df_airports_grouped <- df_airports_grouped %>%
+    filter(group %in% input$grupo)
+  
+  df_flights_grouped <- df_flights_grouped %>%
+    filter(group_id_1 %in% input$grupo) %>%
+    filter(group_id_2 %in% input$grupo)
+  
+  for(i in 1:nrow(df_flights_grouped))  {
+    #Origem
+    node1 <- df_airports_grouped %>% 
+      filter(df_airports_grouped$ID == df_flights_grouped[i,]$Source)
+    
+    #destino
+    node2 <- df_airports_grouped %>%
+      filter(df_airports_grouped$ID == df_flights_grouped[i,]$Target)
+    
+    #numero da cor na paleta
+    edge_ind = round(100*df_flights_grouped[i,]$Freq / max(df_flights_grouped$Freq))
+    
+    # Cria linhas curvas
+    curved_line <-
+      gcIntermediate(
+        p1 = c(node1$longitude, node1$latitude)
+        , p2 = c(node2$longitude, node2$latitude)
+        , breakAtDateLine = TRUE
+        , n = 12
+        , addStartEnd = TRUE
+        , sp = TRUE
+      )
+    
+    
+    
+    #adiciona cada linha curva
+    map_flights <- addPolylines(map_flights, data = curved_line
+                                , color = edge_col[edge_ind]
+                                , weight = edge_ind/30
+                                , opacity = 1)
+  }
+  
+  for(i in 1:nrow(df_airports_grouped)) {
+    group_id <- df_airports_grouped[i,] %>% pull(group)
+    
+    map_flights <-  addCircles(map_flights, data = df_airports_grouped[i,]
+                               , lng = ~longitude
+                               , lat = ~latitude
+                               , group = as.character(group_id)
+                               , color = ~group_pal(group_id)
+                               , popup = pop
+                               , weight = ~centrality*2
+                               , opacity = .8
+                               ,highlightOptions = highlightOptions(color = "yellow", bringToFront = TRUE))
+  }
+  
+  map_flights
+})
+```
+
