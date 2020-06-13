@@ -7,6 +7,14 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r}
+library(tidyverse)
+library(geosphere)
+library(leaflet)
+library(tidygraph)
+library(igraph)
+```
+
 # Flights / map geosphere
 
 ```{r message = F}
@@ -32,18 +40,38 @@ df_flights  <- df_flights %>%
 ```
 
 ```{r}
-#Paleta de cores utilizada
+#Criando variaveis group e centrality a partir do grafo do data frame
+graph_flights_grouped <- df_flights %>%
+  select(-Freq, from = Source, to = Target) %>%
+  as_tbl_graph(directed = F) %>%
+  activate(nodes) %>%
+  mutate(group = tidygraph::group_fast_greedy() %>% as.factor,
+         centrality = centrality_betweenness())
+
+df_airports_grouped <- df_airports %>%
+  mutate(group = V(graph_flights_grouped)$group, centrality = V(graph_flights_grouped)$centrality %>% unname())
+
+df_airports_grouped$centrality
+```
+
+```{r}
+#Paleta de cores utilizada para edge 
 col_1 <- adjustcolor("orange red", alpha=0.4)
 col_2 <- adjustcolor("orange", alpha=0.4)
 edge_pal <- colorRampPalette(c(col_1, col_2), alpha = TRUE)
 edge_col <- edge_pal(100)
+
+#Paleta de cores utilizada para parametro group
+group_pal <- colorFactor(
+  palette = "Set1",
+  domain = df_airports_grouped$group
+)
 
 #pop up
 pop <- str_glue("<b>Lat:</b> {df_airports$latitude} <br/>
                 <b>Lon:</b> {df_airports$longitude} <br/>
                 <b>Airport:</b> {df_airports$Label} <br/>")
 ```
-
 
 ```{r}
 map_flights <-
@@ -57,42 +85,52 @@ map_flights <-
   opacity = .1)
 
 for(i in 1:nrow(df_flights))  {
-    #Origem
-    node1 <- df_airports %>% 
-      filter(df_airports$ID == df_flights[i,]$Source)
-    #destino
-    node2 <- df_airports %>%
-      filter(df_airports$ID == df_flights[i,]$Target)
+  #Origem
+  node1 <- df_airports_grouped %>% 
+    filter(df_airports_grouped$ID == df_flights[i,]$Source)
+
+  #destino
+  node2 <- df_airports_grouped %>%
+    filter(df_airports_grouped$ID == df_flights[i,]$Target)
+
     #numero da cor na paleta
-    edge_ind = round(100*df_flights[i,]$Freq / max(df_flights$Freq))
-    
-    # Cria linhas curvas
-    curved_line <-
-      gcIntermediate(
-        p1 = c(node1$longitude, node1$latitude)
-        , p2 = c(node2$longitude, node2$latitude)
-        , breakAtDateLine = TRUE
-        , n = 1000
-        , addStartEnd = TRUE
-        , sp = TRUE
-  )
-    #adiciona cada linha curva
-    map_flights <- addPolylines(map_flights, data = curved_line
-                , color = edge_col[edge_ind], weight = edge_ind/30, opacity = 1)
+  edge_ind = round(100*df_flights[i,]$Freq / max(df_flights$Freq))
+  
+  # Cria linhas curvas
+  curved_line <-
+    gcIntermediate(
+      p1 = c(node1$longitude, node1$latitude)
+      , p2 = c(node2$longitude, node2$latitude)
+      , breakAtDateLine = TRUE
+      , n = 12
+      , addStartEnd = TRUE
+      , sp = TRUE
+    )
+  
+  
+  
+  #adiciona cada linha curva
+  map_flights <- addPolylines(map_flights, data = curved_line
+                              , color = edge_col[edge_ind]
+                              , weight = edge_ind/30
+                              , opacity = 1)
 }
-# adiciona os pontos por ultimo para sobrepor as linhas
-map_flights <- addCircles(map_flights, data = df_airports
-                    , lng = ~longitude
-                    , lat = ~latitude
-                    , color = "red"
-                    , popup = pop
-                    , weight = 12
-                    , opacity = .8
-                    ,highlightOptions = highlightOptions(color = "yellow", weight = 24, bringToFront = TRUE))
-#mostra o mapa
+
+for(i in 1:nrow(df_airports_grouped)) {
+  group_id <- df_airports_grouped[i,] %>% pull(group)
+  
+  map_flights <-  addCircles(map_flights, data = df_airports_grouped[i,]
+                             , lng = ~longitude
+                             , lat = ~latitude
+                             , group = as.character(group_id)
+                             , color = ~group_pal(group_id)
+                             , popup = pop
+                             , weight = ~centrality*2
+                             , opacity = .8
+                             ,highlightOptions = highlightOptions(color = "yellow", bringToFront = TRUE))
+}
+
 map_flights
 ```
-
-
 
 
