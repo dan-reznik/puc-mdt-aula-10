@@ -4,8 +4,6 @@ library(RSelenium)
 
 
 
-
-
 rD <- rsDriver(port=4444L, browser=c("chrome"), 
                chromever="83.0.4103.39",
                verbose=F)
