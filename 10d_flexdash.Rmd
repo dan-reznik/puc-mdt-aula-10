@@ -1,0 +1,73 @@
+---
+title: "Saldo de Exportações por Estado"
+runtime: shiny
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+
+capitais <- read_csv("data_bi/capitais_lat_lon.csv")
+df_to_from <- read_rds("data_bi/df_to_from.rds") %>%
+  left_join(capitais, by=c("from"="estado"))
+
+states <- read_rds("data_bi/poligonos_estados.rds")
+
+regioes <- c(`Centro Oeste` = "CO",
+              Nordeste = "NE",
+              Norte = "N",
+              Sudeste = "SE",
+              Sul = "S")
+estados <- c(capitais$estado)
+
+
+
+```
+
+
+## Column {.sidebar column-width=100}
+
+```{r}
+radioButtons("ano", "Ano", c("2017","2018"), selected="2017")
+#selectInput("regiao", "Região", choices=regioes, selected = "SE")
+selectInput("estados", "Estados", choices=estados, selected = c("SP"))
+```
+
+## Row {row-height = 400}
+
+
+### 
+
+```{r}
+
+
+renderPlot({
+  df_map <- df_to_from %>%
+    filter(ano==input$ano) %>%
+    left_join(capitais%>%select(-regiao) %>% rename(xend=lon, yend=lat), by=c(to="estado"))
+  
+  states %>%
+    ggplot() +
+    geom_sf( fill="#2D3E50", color="#FEBF57", size=.15, show.legend = FALSE) +
+    geom_point(data=df_map, aes(x=lon, y=lat, size=weight), color="orange") +
+    geom_curve(data=df_map%>%filter(from == input$estados),
+               aes(x = lon, y = lat, xend = xend, yend = yend, # draw edges as arcs
+                   size = weight), color="green",
+               curvature = 0.1, alpha = 0.5,
+               arrow=arrow(length=unit(0.05, units="npc"))) +
+    theme_minimal() +
+    theme(legend.position="none")
+})
+
+
+
+
+
+```
+
+
+
