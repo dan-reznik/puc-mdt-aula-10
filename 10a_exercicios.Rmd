@@ -1,0 +1,42 @@
+---
+title: "PUC MDT Data Science Aula 10 -- Exercicios"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Parte 01: emails
+
+```{r}
+df_emails <- read_csv("data/email_edges.csv",col_types = "iii")
+df_emails_users <- read_csv("data/email_nodes.csv","iccc")
+```
+
+## Processamento com tidyverse
+
+1) Quais os nomes dos 5 usuarios com mais emails enviados? (usar group_by, summarize, left_join)
+2) Para cada um dos 5 acima, quais os nomes de seus 3 principais destinatários? (usar group_by com duas colunas)
+3) Quais 5 usuários receberam o menor numero de emails?
+4) Quais usuários tem o maior número de destinatários únicos?
+
+## Visualização
+
+1) Mostrar gráfico com bolinhas coloridas por 'cargo'
+2) No rótulo de cada nó, colocar nome+cargo. por exemplo: "josé+gerente". dica: str_c(nome,"\n",cargo))
+3) Experimentar com todos os 7 layouts, escolher o melhor.
+
+# Parte 02: Enron
+
+```{r}
+df_enron <- read_csv("data/email_enron2.csv", col_types = "iii")
+gr_enron <- gr_enron <- df_enron %>% as_tbl_graph(directed=F)
+```
+
+1) Fazer ggplot com o numero de emails enviados pelos 5 usuarios com mais emails disparados
+2) Quais os 5 usuarios que mais receberam emails?
+3) adicionar a `gr_enron` atributo de grupo e de centralidade.
+4) quem é o nó com maior centralidade? e com menor?
+5) quantos grupos distintos há?
+6) plotar grafo da enron com bolinhas coloridas pelo grupo

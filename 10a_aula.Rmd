@@ -8,18 +8,14 @@ library(tidyverse)
 library(igraph)
 library(tidygraph)
 library(ggraph)
-#library(networkD3)
-#library(maps)
-#library(geosphere)
-#library(leaflet)
 ```
 
-# Tidygraph
+# Parte 1: Emails
 
 Lê conectividade (arestas)
 
 ```{r}
-df_emails <- read_csv("data/email_edges.csv")
+df_emails <- read_csv("data/email_edges.csv",col_types="iii")
 ```
 
 Converte para objeto "tidgraph"
@@ -27,13 +23,11 @@ Converte para objeto "tidgraph"
 ```{r}
 gr_emails <- df_emails %>%
   as_tbl_graph()
+gr_emails
 ```
 
-Quais nós? (V=vertices)
 
-```{r}
-V(gr_emails)
-```
+Quais são os nomes dos nós? (V=vertices)
 
 Quais arestas? (E=edges)
 
@@ -41,394 +35,166 @@ Quais arestas? (E=edges)
 E(gr_emails)
 ```
 
-Atribui peso a cada aresta pelo numero de emails
-
-```{r}
-E(gr_emails)$weight <- df_emails$emails
-```
-
 Desenha
 
 ```{r}
 gr_emails %>% 
   ggraph(layout = 'graphopt') + 
-  geom_edge_fan2(aes(edge_width=weight)) +
-  scale_edge_width_discrete(range(1,100)) +
+  geom_edge_link() +
   geom_node_point(size = 5)
 ```
 
+Desenha com outro layout. Layouts disponíveis: star, circle, grid, sphere, kk, fr, mds, lgl.
+
 ```{r}
 gr_emails %>% 
-  ggraph(layout = 'graphopt') + 
-  geom_edge_link(aes(edge_width=weight/25),
-                arrow = arrow(length = unit(3, 'mm')), 
+  ggraph(layout = 'fr') + 
+  geom_edge_link(arrow = arrow(length = unit(3, 'mm')), 
                  end_cap = circle(3, 'mm')) + 
   geom_node_point(size = 5)
 ```
 
-Lê info sobre usuários
+Lê info sobre funcionários
 
 ```{r}
 df_emails_users <- read_csv("data/email_nodes.csv",
-                            col_types="ccc")
+                            col_types="iccc")
 df_emails_users
 ```
 
-Vamos atribuir os nomes dos usuarios ao grafo
+```{r}
+V(gr_emails)$name
+```
+
+Faz lookup para atribuir nomes dos funcionarios na ordem q os nós foram criados.
 
 ```{r}
-V(gr_emails)$name <- df_emails_users$name
-V(gr_emails)$sex <- df_emails_users$sex
+df_lookup <- tibble(id=V(gr_emails)$name %>% as.integer) %>%
+  left_join(df_emails_users)
+df_lookup
 ```
 
 
 ```{r}
-gr_emails_attr <- gr_emails %>%
-  mutate(name=df_emails_node_names$name,
-         color=if_else(df_emails_node_names$sex=="M",'blue','pink'))
+V(gr_emails)
 ```
 
-Desenha o grafo:
+Atribui caracteristicas dos usuarios aos vertices na ordem correta
 
 ```{r}
-gr_emails_attr %>%
-ggraph(layout = 'graphopt') + 
-    geom_edge_link(aes(start_cap = label_rect(node1.name),
-                       end_cap = label_rect(node2.name)), 
-                   arrow = arrow(length = unit(4, 'mm'))) +
-  geom_node_point(aes(color=color),size=10) +
-    geom_node_text(aes(label = name)) +
+V(gr_emails)$nome <- df_lookup$name
+V(gr_emails)$sex <- df_lookup$sex
+V(gr_emails)$cargo <- df_lookup$cargo
+```
+
+Desenha o grafo com nomes nos nós:
+
+```{r}
+gr_emails %>%
+  ggraph(layout = 'fr') + 
+  geom_edge_fan(aes(start_cap = label_rect(node1.name),
+                     end_cap = label_rect(node2.name)), 
+                 arrow = arrow(length = unit(4, 'mm'))) +
+  geom_node_point(aes(color=sex),size=10) +
+  geom_node_text(aes(label = nome)) +
   theme(legend.position = "none")
 ```
 
-
-## Zachary
-
-Social network of friendships between 34 members of a karate club at a US university in the 1970s. See W. W. Zachary, An information flow model for conflict and fission in small groups, Journal of Anthropological Research 33, 452-473 (1977).
+Rotula arestas com numero de emails trocados
 
 ```{r}
-g_zachary <- make_graph('Zachary')
-ggraph(g_zachary, layout = 'graphopt') + 
-    geom_edge_link(arrow = arrow(length = unit(4, 'mm')), 
-                   end_cap = circle(3, 'mm')) + 
-    geom_node_point(size = 5)
-```
-
-Atribui nomes
-
-```{r}
-g_bull <- make_graph('Bull')
-V(g_bull)
-E(g_bull)
-V(g_bull)$name
-```
-
-Atribuir nomes
-
-```{r}
-V(g_bull)$name <- c('Thomas', 'Bob', 'Hadley', 'Winston', 'Baptiste')
-E(g_bull)$type <- sample(c('friend', 'foe'), 5, TRUE)
-V(g_bull)$color <- sample(c('red', 'blue','green'), 5, TRUE)
-```
-
-
-```{r}
-ggraph(g_bull, layout = 'graphopt') + 
-    geom_edge_link(aes(start_cap = label_rect(node1.name),
-                       end_cap = label_rect(node2.name)), 
-                   arrow = arrow(length = unit(4, 'mm'))) + 
-    geom_node_text(aes(label = name))
+gr_emails %>%
+ggraph(layout = 'circle') + 
+    geom_edge_fan(aes(label = emails), 
+                strength=2,
+                angle_calc = 'along',
+                label_dodge = unit(2.5, 'mm'),
+                arrow = arrow(length = unit(3, 'mm')), 
+                end_cap = circle(8, 'mm')) + 
+  geom_node_point(aes(color=sex),size=20) +
+  geom_node_text(aes(label = nome)) +
+  theme(legend.position = "none")
 ```
 
 ```{r}
-ggraph(g_bull, layout = 'graphopt') + 
-    geom_edge_link(aes(label = type), 
-                   angle_calc = 'along',
-                   label_dodge = unit(2.5, 'mm'),
-                   arrow = arrow(length = unit(4, 'mm')), 
-                   end_cap = circle(3, 'mm')) + 
-    geom_node_point(aes(color=color),size = 5)
-```
-
-# tidygraph
-
-```{r}
-highschool
-```
-
-
-```{r}
-graph <- as_tbl_graph(highschool) %>%
-    mutate(Popularity = centrality_degree(mode = 'in'))
+gr_emails %>%
+ggraph(layout = 'circle') + 
+    geom_edge_fan(aes(label = emails), 
+                strength=2,
+                angle_calc = 'along',
+                label_dodge = unit(2.5, 'mm'),
+                arrow = arrow(length = unit(3, 'mm')), 
+                end_cap = circle(8, 'mm')) + 
+  geom_node_point(aes(color=sex),size=20) +
+  geom_node_text(aes(label = str_c(nome,"\n",cargo))) +
+  theme(legend.position = "none")
 ```
 
 ```{r}
-ggraph(graph, layout = 'kk') +
-    geom_edge_fan(aes(alpha = stat(index)), show.legend = FALSE) +
-    geom_node_point(aes(size = Popularity)) +
-    facet_edges(~year) +
-    theme_graph(foreground = 'steelblue', fg_text_colour = 'white')
+gr_emails %>%
+ggraph(layout = 'circle') + 
+    geom_edge_fan(aes(edge_width=emails), 
+                strength=2,
+                angle_calc = 'along',
+                label_dodge = unit(2.5, 'mm'),
+                arrow = arrow(length = unit(3, 'mm')), 
+                end_cap = circle(8, 'mm')) + 
+  geom_node_point(aes(color=sex),size=20) +
+  geom_node_text(aes(label = nome))
 ```
 
-## detecta comuniddes
+# Parte 2: Grupamento e centralidade
 
 ```{r}
-tutte_grouped <- create_notable('tutte') %>%
-  # activate(nodes) %>%
+gr_emails_grouped <- gr_emails %>%
   mutate(group = group_edge_betweenness() %>% as.factor,
          centrality = centrality_betweenness())
 ```
 
 ```{r}
-V(tutte_grouped)$centrality
+V(gr_emails_grouped)$group
 ```
 
-
+```{r}
+V(gr_emails_grouped)$centrality
+```
 
 ```{r}
-tutte_grouped %>%
-  ggraph() +
+gr_emails_grouped %>%
+  ggraph(layout="kk") +
   geom_edge_link() +
   geom_node_point(aes(color=group,size=centrality))
 ```
 
+## Enron
 
-# Network D3
+Dados da Enron, [fonte](http://networkrepository.com/email.php)
 
 ```{r}
-nodes <- read.csv("data_sb/Dataset1-Media-Example-NODES.csv", header=T, as.is=T)
-links <- read.csv("data_sb/Dataset1-Media-Example-EDGES.csv", header=T, as.is=T)
+df_enron <- read_csv("data/email_enron2.csv", col_types = "iii")
+df_enron
 ```
 
-```{r}
-nodes <- read_csv("data_sb/Dataset1-Media-Example-NODES.csv")
-links <- read_csv("data_sb/Dataset1-Media-Example-EDGES.csv")
-```
+Detecta se grafo é diretivo ou bi-direcional
 
 ```{r}
-links.d3 <- tibble(from=as.numeric(factor(links$from))-1,
-                       to=as.numeric(factor(links$to))-1 )
-nodes_d3 <- nodes %>%
-  mutate(idn=factor(nodes$media, levels=nodes$media)) %>%
-  select(idn,everything()) # idn tem q ser a primeira coluna
+df_enron %>%
+  semi_join(df_enron,
+            by=c(from="to",to="from"))
 ```
 
+Converte data frame para grafo nao-direcional
+
 ```{r}
-forceNetwork(Links = links.d3, Nodes = nodes_d3, Source="from", Target="to",
-             NodeID = "idn", # must be first column in Nodes df
-             Group = "type.label", linkWidth = 1,
-             linkColour = "#afafaf", fontSize=12, zoom=T, legend=T,
-             Nodesize=6, opacity = 1, charge=-600,
-             width = 600, height = 600)
+gr_enron <- df_enron %>%
+  as_tbl_graph(directed=F)
+gr_enron
 ```
 
 
 
 
-```{r}
-tutte_links_d3 <- tutte_grouped %>%
-  as_data_frame() %>%
-  mutate(from=as.integer(as.factor(from))-1L,
-         to=as.integer(as.factor(to))-1L) %>%
-  as.data.frame()
-```
-
-```{r}
-tutte_grouped %>% V %>% as.numeric
-```
-
-
-```{r}
-tutte_nodes_d3 <- data_frame(nodes=tutte_grouped %>% V %>% as.character,
-                             idn=c("xxx")) %>%
-  as.data.frame()
-```
 
 
 
-
-```{r}
-nodes.d3 <- cbind(idn=factor(nodes$media, levels=nodes$media), nodes)
-```
-
-
-<!-- Iverton: consegue fazer este mapa em leaflet?  -->
-
-![flights](pics/flights_usa.png)
-
-
-
-# Highschool dataset
-
-
-Setenta alunos de uma escola (numerados de 1 a 70) foram feitos a seguinte pergunta: "com quais outros alunos desta escola você interage?". Esta pergunta foi repetida nos anos de 1957 e 1958, ou seja pode-se visualizar a evolução de amizades sobre este período.
-
-
-```{r}
-highschool %>% as_tibble()
-```
-
-Quantos alunos distintos?
-
-```{r}
-highschool$from %>% n_distinct()
-highschool$to %>% n_distinct()
-```
-
-Quantos anos distintos
-
-```{r}
-highschool %>% count(year)
-```
-
-Carrega dados de amizades em highschool nos anos de 1957 e 1958
-
-```{r}
-# nota: with tidygraph use as_tbl_graph
-graph <- graph_from_data_frame(highschool)
-```
-
-```{r}
-# Not specifying the layout - defaults to "auto"
-ggraph(graph) + 
-    geom_edge_link(aes(colour = factor(year))) + 
-    geom_node_point()
-```
-
-possible layouts: star, circle, grid, sphere, kk, fr, mds, lgl
-
-
-```{r}
-ggraph(graph, layout = 'grid') + 
-  geom_node_point(size=1,color="black") +
-  geom_edge_link(aes(colour = factor(year)))
-```
-
-New friendships
-
-```{r}
-graph_new_friendship <- highschool %>%
-  filter(year==1958) %>%
-  anti_join(highschool %>% filter(year==1957),by=c(from="from",to="to")) %>%
-  graph_from_data_frame()
-```
-
-```{r}
-ggraph(graph_new_friendship, layout = 'grid') + 
-  geom_node_point(size=1,color="black") +
-  geom_edge_link() +
-  coord_fixed()
-```
-
-o dataset `flare` é uma hierarquia de classes de uma biblioteca de software (ActionScript), lista de 3 data frames.
-
-```{r}
-flare %>% map(glimpse)
-```
-
-# net dataset
-
-```{r}
-nodes <- read.csv("data_sb/Dataset1-Media-Example-NODES.csv", header=T, as.is=T)
-links <- read.csv("data_sb/Dataset1-Media-Example-EDGES.csv", header=T, as.is=T)
-head(nodes)
-head(links)
-```
-
-Transforma em objeto do igraph
-
-```{r}
-net <- graph_from_data_frame(d=links, vertices=nodes, directed=T)
-```
-
-Atribui cores baseadas no media.type
-
-```{r}
-V(net)$media.type
-```
-
-
-```{r}
-colrs <- c("gray50", "tomato","gold")
-V(net)$color <- colrs[V(net)$media.type]
-```
-
-
-```{r}
-net %>%
-  ggraph(layout="lgl") +
-  geom_edge_fan(color="gray50", width=0.8, alpha=0.5) +
-  geom_node_point(aes(color=color), size=8) +
-  scale_color_manual(values=colrs %>% set_names(colrs)) +
-  theme_void()
-```
-
-## Community detection
-
-```{r}
-clp <- cluster_optimal(net)
-class(clp)
-```
-
-```{r}
-clp
-```
-
-
-```{r}
-V(net)$community <- clp$membership
-```
-
-```{r}
-plot(clp, net, edge.arrow.size=.5)
-```
-
-
-# Flare: gierarquico
-
-```{r}
-graph_flare <- graph_from_data_frame(flare$edges, vertices = flare$vertices)
-ggraph(graph_flare, 'dendrogram',circular=T) + 
-  geom_edge_diagonal() +
-  geom_node_point() +
-  coord_fixed()
-```
-
-
-```{r}
-flaregraph <- graph_from_data_frame(flare$edges, vertices = flare$vertices)
-from <- match(flare$imports$from, flare$vertices$name)
-to <- match(flare$imports$to, flare$vertices$name)
-ggraph(flaregraph, layout = 'dendrogram', circular = TRUE) + 
-    geom_conn_bundle(data = get_con(from = from, to = to), alpha = 0.1) + 
-    coord_fixed()
-```
-
-# Read Enron file
-
-
-```{r}
-df_enron <- read_delim("data/email-enron-large.mtx",
-                       delim=fixed(" "),
-                       skip = 2,
-                       col_names = c("from","to"),
-                       col_types = c("ii"))
-```
-
-```{r}
-graph_enron <- df_enron %>%
-  as_tbl_graph(directed=F) %>%
-  activate(nodes) %>%
-  mutate(group = tidygraph::group_fast_greedy() %>% as.factor,
-         centrality = tidygraph::group_fast_greedy())
-```
-
-possible layouts: star, circle, grid, sphere, kk, fr, mds, lgl
-
-```{r}
-graph_enron %>%
-  ggraph(layout="fr") +
-  geom_edge_link() +
-  geom_node_point(aes(color=group,size=centrality))
-```
 

@@ -181,10 +181,6 @@ V(net)$name
 
 
 ```{r}
-
-
-
-
 #library(geobr)
 states <- read_state(year=2014)
 capitais <- read_csv("data_bi/capitais_lat_lon.csv")
@@ -192,11 +188,11 @@ df_map <- df_from_to_2017 %>% left_join(capitais, by=c("from"="estado")) %>% mut
 
 df_map <- df_map %>% inner_join(capitais%>%select(-regiao) %>% rename(xend=lon, yend=lat), by=c(to="estado"))
 
-edges_for_plot <- edges %>%
-  inner_join(nodes %>% select(id, lon, lat), by = c('from' = 'id')) %>%
-  rename(x = lon, y = lat) %>%
-  inner_join(nodes %>% select(id, lon, lat), by = c('to' = 'id')) %>%
-  rename(xend = lon, yend = lat)
+#edges_for_plot <- edges %>%
+#  inner_join(nodes %>% select(id, lon, lat), by = c('from' = 'id')) %>%
+#  rename(x = lon, y = lat) %>%
+#  inner_join(nodes %>% select(id, lon, lat), by = c('to' = 'id')) %>%
+#  rename(xend = lon, yend = lat)
 
 states %>%
   ggplot() +
@@ -231,16 +227,15 @@ states %>%
 
 ```{r}
 
-
-
-df_map
-links.d3 <- tibble(from=as.integer(factor(df_map$from))-1L,
-                       to=as.integer(factor(df_map$to))-1L )
-nodes_d3 <- capitais %>%
-  mutate(idn=factor(capitais$regiao, levels=capitais$regiao%>%unique())) %>%
+nodes.d3 <- capitais %>%
+  mutate(idn=factor(capitais$estado, levels=capitais$estado)) %>%
   select(idn,everything()) 
 
-forceNetwork(Links = links.d3, Nodes = nodes_d3, Source="from", Target="to",
+links.d3 <- tibble(from=as.integer(factor(df_map$from))-1L,
+                   to=as.integer(factor(df_map$to))-1L )
+
+forceNetwork(Links = links.d3, Source="from", Target="to",
+             Nodes = nodes.d3, 
              NodeID = "idn", # must be first column in Nodes df
              Group = "regiao", linkWidth = 1,
              linkColour = "#afafaf", fontSize=12, zoom=T, legend=T,
